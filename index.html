@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Для Дянки</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Marck+Script&display=swap">
+<style>
+:root{--bg:#f3eef0;--ink:#2a1f2b;--mut:#7a6a7c;--panel:#fff;--line:#dccfd8;--btn:#f0e4ec;--acc:#c2417c;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#07060b;--ink:#f1e9f3;--mut:#9a8aa3;--panel:#0f0c15;--line:#2b2236;--btn:#1b1524;--acc:#ff7eb6}}
+:root[data-theme="dark"]{--bg:#07060b;--ink:#f1e9f3;--mut:#9a8aa3;--panel:#0f0c15;--line:#2b2236;--btn:#1b1524;--acc:#ff7eb6}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Fira Code",Consolas,monospace;display:grid;place-items:center;min-height:100vh;padding:14px}
+.app{width:min(980px,100%)}
+h1{font-size:15px;font-weight:600;margin:4px 2px 12px;letter-spacing:.02em;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+h1 span{color:var(--mut);font-weight:400}
+.stage{position:relative;height:min(92vh,900px);min-height:430px;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:radial-gradient(ellipse at 50% 55%,#1a1228,#08060d 60%,#020104)}
+canvas{width:100%;height:100%;display:block}
+.name{position:absolute;left:0;right:0;bottom:22px;text-align:center;color:#ffd9ec;font-family:"Marck Script",cursive;font-size:40px;text-shadow:0 0 18px #ff7eb6,0 2px 14px #000}
+.panel{margin-top:12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-wrap:wrap;gap:12px 22px;align-items:center;font-size:12px}
+label{display:flex;align-items:center;gap:8px}
+input{width:110px;accent-color:var(--acc)}
+button{background:var(--btn);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 12px;font:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+@media(max-width:600px){.stage{height:66vh;min-height:400px}.name{font-size:32px}}
+</style>
+</head>
+<body>
+<div class="app">
+<div class="stage"><canvas id="c"></canvas>
+<div class="name">Для Дянки</div></div>
+</div>
+<script>
+(()=>{
+const $=id=>document.getElementById(id),c=$('c'),ctx=c.getContext('2d');
+const N=9000,TAU=Math.PI*2,chars=' .,:;irsXA253hMHGS#9B&@';
+function rng(s){return()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const mixc=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];
+const rotX=(v,a)=>{const s=Math.sin(a),k=Math.cos(a);return[v[0],v[1]*k-v[2]*s,v[1]*s+v[2]*k]};
+const rotY=(v,a)=>{const s=Math.sin(a),k=Math.cos(a);return[v[0]*k+v[2]*s,v[1],-v[0]*s+v[2]*k]};
+const norm=v=>{const l=Math.hypot(v[0],v[1],v[2])||1;return[v[0]/l,v[1]/l,v[2]/l]};
+// применить поворот/масштаб/сдвиг цветка к точке
+function tp(T,p,n,col){
+ let q=rotY(rotX(p,T.tilt||0),T.yaw||0),m=rotY(rotX(n,T.tilt||0),T.yaw||0),s=T.s;
+ return[q[0]*s+T.cx,q[1]*s+T.cy,q[2]*s+T.cz,...norm(m),...col];
+}
+// ---------- Лепестки ----------
+function petal(L,T,R){
+ return()=>{
+  const k=R()*L.count|0,base=TAU*k/L.count+(L.off||0),u=Math.pow(R(),.9),v=R()*2-1;
+  const phi=L.phi+L.bend*u*.5,len=L.L*u;
+  const w=L.W*Math.sin(Math.PI*(.1+.85*Math.pow(u,L.sh||1)));
+  const r=L.r0+len*Math.sin(phi)+.25*(L.cup||0)*v*v*w;
+  const y=L.h0+len*Math.cos(phi)+(L.cup||0)*v*v*w;
+  const sd=v*w,cb=Math.cos(base),sb=Math.sin(base);
+  const p=[r*cb-sd*sb,y,r*sb+sd*cb],n=[Math.cos(phi)*cb,-Math.sin(phi),Math.cos(phi)*sb];
+  const col=mixc(L.c0,L.c1,u).map(x=>x+(R()-.5)*14);
+  return tp(T,p,n,col);
+ };
+}
+function sph(T,cx,cy,cz,rx,ry,rz,c0,c1,R){
+ return()=>{const a=R()*TAU,z=R()*2-1,q=Math.sqrt(1-z*z),d=[q*Math.cos(a),z,q*Math.sin(a)];
+  return tp(T,[cx+rx*d[0],cy+ry*d[1],cz+rz*d[2]],[d[0]/rx,d[1]/ry,d[2]/rz],mixc(c0,c1,(d[1]+1)/2).map(x=>x+(R()-.5)*20));};
+}
+function bloom(T,cfg,R,k=1){
+ const parts=cfg.layers.map(L=>[L.w*T.s*T.s*k,petal(L,T,R)]);
+ if(cfg.disc)parts.push([cfg.disc.w*T.s*T.s*k,()=>{
+  const D=cfg.disc,r=D.R*Math.sqrt(R()),a=R()*TAU,x=r*Math.cos(a),z=r*Math.sin(a),f=r/D.R;
+  const col=mixc(D.c0,D.c1,f).map(v=>v+(R()<.2?45:0)+(R()-.5)*16);
+  return tp(T,[x,D.h+.12*(1-f*f),z],[x*.5,1,z*.5],col);}]);
+ if(cfg.core)parts.push([cfg.core.w*T.s*T.s*k,sph(T,0,cfg.core.y,0,cfg.core.r,cfg.core.r*.7,cfg.core.r,[255,150,20],[255,235,90],R)]);
+ return parts;
+}
+// ---------- Стебли, листья, обёртка ----------
+function stem(a,b,R,th=.03){
+ return()=>{const t=R(),g=R()*TAU,bow=.1*Math.sin(Math.PI*t);
+  const p=[a[0]+(b[0]-a[0])*t+bow+th*Math.cos(g),a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t+th*Math.sin(g)];
+  return[...p,Math.cos(g),0,Math.sin(g),...mixc([30,120,45],[90,190,70],t).map(x=>x+(R()-.5)*14)];};
+}
+function leaf(cx,cy,cz,rx,ry,rz,yaw,droop,R){
+ return()=>{const a=R()*TAU,z=R()*2-1,q=Math.sqrt(1-z*z),d=[q*Math.cos(a),z,q*Math.sin(a)];
+  let p=[rx*d[0],ry*d[1],rz*d[2]],n=[d[0]/rx,d[1]/ry,d[2]/rz];
+  const rz2=(v)=>[v[0]*Math.cos(droop)-v[1]*Math.sin(droop),v[0]*Math.sin(droop)+v[1]*Math.cos(droop),v[2]];
+  p=rotY(rz2(p),yaw);n=norm(rotY(rz2(n),yaw));
+  return[p[0]+cx,p[1]+cy,p[2]+cz,...n,...mixc([22,100,40],[110,210,80],(d[1]+1)/2).map(x=>x+(R()-.5)*14)];};
+}
+function cone(R){
+ return()=>{const t=R(),a=R()*TAU,y=-1.95+t*1.15,r=.1+t*.72;
+  const col=Math.sin(a*7)>.55?[225,130,170]:[245,230,205];
+  return[r*Math.cos(a),y,r*Math.sin(a),Math.cos(a),.4,Math.sin(a),...col.map(x=>x+(R()-.5)*10)];};
+}
+function pad(R,y,rad){
+ return()=>{const r=rad*Math.sqrt(R()),a=R()*TAU,f=r/rad;
+  return[r*Math.cos(a),y+.18*Math.pow(f,4),r*Math.sin(a),0,1,0,...mixc([20,90,60],[90,190,100],f).map(x=>x+(R()-.5)*16)];};
+}
+// ---------- Конфигурации цветков ----------
+const ROSE={layers:[
+ {count:4,off:0,r0:.05,L:.38,phi:.3,bend:-.8,W:.2,h0:.05,cup:.5,c0:[140,8,50],c1:[230,55,105],w:1},
+ {count:5,off:.6,r0:.1,L:.5,phi:.35,bend:-.3,W:.3,h0:.03,cup:.5,c0:[165,14,60],c1:[245,80,130],w:1.6},
+ {count:6,off:.3,r0:.14,L:.62,phi:.6,bend:.1,W:.42,h0:0,cup:.5,c0:[185,25,75],c1:[250,110,160],w:2.4},
+ {count:7,off:1.1,r0:.18,L:.7,phi:.95,bend:.5,W:.5,h0:-.04,cup:.6,c0:[200,40,90],c1:[255,150,185],w:3},
+ {count:8,off:.5,r0:.2,L:.75,phi:1.3,bend:.4,W:.55,h0:-.08,cup:.6,c0:[210,60,105],c1:[255,185,205],w:3.4}]};
+const SUN={layers:[
+ {count:18,off:0,r0:.55,L:.6,phi:1.25,bend:.35,W:.17,h0:0,cup:.2,sh:.8,c0:[230,150,10],c1:[255,215,40],w:2},
+ {count:18,off:.17,r0:.5,L:.55,phi:1.4,bend:.3,W:.17,h0:.02,cup:.2,sh:.8,c0:[255,190,20],c1:[255,235,80],w:2}],
+ disc:{R:.62,h:0,w:3.4,c0:[50,25,8],c1:[150,95,25]}};
+const TUL={layers:[
+ {count:3,off:0,r0:.12,L:1,phi:.15,bend:-.5,W:.38,h0:0,cup:.55,sh:.9,c0:[200,18,40],c1:[255,95,50],w:3},
+ {count:3,off:1.05,r0:.14,L:.95,phi:.2,bend:-.6,W:.4,h0:0,cup:.55,sh:.9,c0:[220,35,45],c1:[255,160,60],w:3}]};
+const LOT={layers:[
+ {count:8,off:0,r0:.1,L:.7,phi:.35,bend:.15,W:.2,h0:0,cup:.25,sh:.9,c0:[255,245,250],c1:[255,150,195],w:2},
+ {count:8,off:.39,r0:.12,L:.85,phi:.75,bend:.25,W:.26,h0:-.03,cup:.25,sh:.9,c0:[255,240,248],c1:[250,115,175],w:2.4},
+ {count:10,off:.2,r0:.15,L:.95,phi:1.1,bend:.3,W:.28,h0:-.06,cup:.3,sh:.9,c0:[250,235,245],c1:[240,95,165],w:3},
+ {count:12,off:.1,r0:.2,L:1,phi:1.4,bend:.3,W:.28,h0:-.1,cup:.3,sh:.9,c0:[245,225,240],c1:[225,85,155],w:3.4}],
+ core:{y:.1,r:.16,w:.8}};
+// ---------- Сборка форм ----------
+function gen(parts){
+ const sum=parts.reduce((a,p)=>a+p[0],0),P=new Float32Array(N*3),Nn=new Float32Array(N*3),C=new Float32Array(N*3),tmp=[];
+ let i=0;
+ parts.forEach((p,k)=>{const cnt=k===parts.length-1?N-i:Math.round(N*p[0]/sum);for(let j=0;j<cnt&&i<N;j++,i++)tmp.push(p[1]())});
+ while(tmp.length<N)tmp.push(tmp[tmp.length-1]);
+ // сортировка: низ→верх и по углу, чтобы точки перетекали осмысленно
+ tmp.sort((a,b)=>(Math.floor(a[1]*14)*10+(Math.atan2(a[2],a[0])+Math.PI)/TAU*9.99)-(Math.floor(b[1]*14)*10+(Math.atan2(b[2],b[0])+Math.PI)/TAU*9.99));
+ tmp.forEach((q,j)=>{P.set(q.slice(0,3),j*3);Nn.set(q.slice(3,6),j*3);C.set(q.slice(6,9),j*3)});
+ return{P,N:Nn,C};
+}
+function single(R,cfg,T,stemTop,extra=[]){
+ return gen([...bloom(T,cfg,R),[1.2,stem([0,-1.75,0],[0,stemTop,0],R,.035)],
+  [.5,leaf(-.3,-.95,0,.4,.06,.14,0,.35,R)],[.5,leaf(.3,-.6,.02,.36,.06,.13,Math.PI,.35,R)],...extra]);
+}
+const shapes=[];
+{ // 0. Букет
+ const R=rng(11),base=[0,-1.75,0];
+ const t1={s:.6,cx:-.72,cy:.4,cz:0,tilt:-.25,yaw:.3},t2={s:.52,cx:.7,cy:.3,cz:-.1,tilt:.8,yaw:.5},
+       t3={s:.5,cx:0,cy:.95,cz:-.2,tilt:0,yaw:0},t4={s:.46,cx:.05,cy:.1,cz:.4,tilt:.2,yaw:1.2};
+ shapes.push({name:'Букет',...gen([...bloom(t1,ROSE,R),...bloom(t2,SUN,R),...bloom(t3,TUL,R),...bloom(t4,ROSE,R),
+  [.9,stem(base,[-.72,.3,0],R)],[.9,stem(base,[.7,.2,-.1],R)],[.9,stem(base,[0,.75,-.2],R)],[.7,stem(base,[.05,.05,.4],R)],
+  [.5,leaf(-.35,-.45,.1,.4,.06,.14,.2,.4,R)],[.5,leaf(.4,-.35,.15,.4,.06,.14,2.9,.4,R)],[.4,leaf(.1,.05,.3,.3,.05,.12,1.5,.4,R)],
+  [3.2,cone(R)]])});
+}
+shapes.push({name:'Роза',...single(rng(22),ROSE,{s:1.25,cx:0,cy:.2,cz:0,tilt:.15,yaw:0},-.05)});
+shapes.push({name:'Подсолнух',...single(rng(33),SUN,{s:1.3,cx:0,cy:.45,cz:0,tilt:.75,yaw:0},.3)});
+shapes.push({name:'Тюльпан',...single(rng(44),TUL,{s:1.15,cx:0,cy:.15,cz:0,tilt:0,yaw:0},.1)});
+{ const R=rng(55),T={s:1.1,cx:0,cy:-.7,cz:0,tilt:0,yaw:.2};
+ shapes.push({name:'Лотос',...gen([...bloom(T,LOT,R),[5,pad(R,-1.05,1.6)]])}); }
+const M=shapes.length,subs=['цветы из символов','каждый цветок из тех же точек','лепестки перетекают','точки собираются заново','почти как вода'];
+// ---------- Данные для морфинга ----------
+const Rm=rng(99),dl=new Float32Array(N),rv=new Float32Array(N*3);
+for(let i=0;i<N;i++){dl[i]=Rm()*.42;rv[i*3]=Rm()-.5;rv[i*3+1]=Rm()-.5;rv[i*3+2]=Rm()-.5}
+// ---------- Интерфейс ----------
+
+let W,H,cols,rows,cw,chh,zb,chb,rb,gb,bb,ab;
+let paused=false,last=0,clock=0,angle=0,mxx=0,tx=0,lab='';
+const HOLD=3.2,TRANS=2.6,CYC=HOLD+TRANS;
+function resize(){const r=c.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);W=c.width=Math.floor(r.width*d);H=c.height=Math.floor(r.height*d)}
+addEventListener('resize',resize);resize();
+const Lv=norm([-.4,.7,.65]);
+function draw(time){
+ requestAnimationFrame(draw);
+ const dt=Math.min((time-last)/1000||0,.05);last=time;
+ const sp=1;
+ if(!paused){clock+=dt*sp;angle+=dt*sp*.55}
+ mxx+=(tx-mxx)*.05;
+ const idx=Math.floor(clock/CYC),loc=clock-idx*CYC,T=loc<HOLD?0:(loc-HOLD)/TRANS,ia=idx%M,ib=(ia+1)%M;
+ const A=shapes[ia],B=shapes[ib];
+ const cell=9*(devicePixelRatio||1);
+ cw=cell*.62;chh=cell;cols=Math.ceil(W/cw);rows=Math.ceil(H/chh);
+ if(!zb||zb.length!==cols*rows){const n=cols*rows;zb=new Float32Array(n);chb=new Uint8Array(n);rb=new Uint8Array(n);gb=new Uint8Array(n);bb=new Uint8Array(n);ab=new Float32Array(n)}
+ zb.fill(-1e9);
+ const scale=Math.min(W/4,H/4.1),yaw=angle+mxx*.5,pitch=.12+.1*Math.sin(clock*.5),
+  cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp2=Math.sin(pitch);
+ const aP=A.P,bP=B.P,aN=A.N,bN=B.N,aC=A.C,bC=B.C;
+ for(let i=0;i<N;i++){
+  const o=i*3;let e=0;
+  if(T>0){const l=Math.min(1,Math.max(0,(T-dl[i])/.58));e=l*l*(3-2*l)}
+  let x=aP[o]+(bP[o]-aP[o])*e,y=aP[o+1]+(bP[o+1]-aP[o+1])*e,z=aP[o+2]+(bP[o+2]-aP[o+2])*e;
+  let nx=aN[o]+(bN[o]-aN[o])*e,ny=aN[o+1]+(bN[o+1]-aN[o+1])*e,nz=aN[o+2]+(bN[o+2]-aN[o+2])*e;
+  if(e>0&&e<1){
+   const s=Math.sin(Math.PI*e),w=s*(1.3+rv[o]*1.6),cs=Math.cos(w),sn=Math.sin(w);
+   const x2=x*cs+z*sn,z2=-x*sn+z*cs;x=x2+rv[o]*s*.6;z=z2+rv[o+2]*s*.6;y+=rv[o+1]*s*.7+s*.12;
+  }
+  const px=x*cy+z*sy,pz=-x*sy+z*cy,py=(y+.3)*cp-pz*sp2,pzz=(y+.3)*sp2+pz*cp;
+  const per=4.5/(4.5-pzz),sx=W/2+px*scale*per,sY=H/2-py*scale*per;
+  const col=Math.floor(sx/cw),row=Math.floor(sY/chh);
+  if(col<0||col>=cols||row<0||row>=rows)continue;
+  const k=row*cols+col;if(pzz<=zb[k])continue;
+  const qx=nx*cy+nz*sy,qz=-nx*sy+nz*cy,qy=ny*cp-qz*sp2,qz2=ny*sp2+qz*cp,nl=Math.hypot(qx,qy,qz2)||1;
+  const light=Math.min(1,.18+.82*Math.abs((qx*Lv[0]+qy*Lv[1]+qz2*Lv[2])/nl));
+  const f=.4+.75*light;
+  zb[k]=pzz;chb[k]=Math.floor(light*(chars.length-1));
+  rb[k]=Math.min(255,(aC[o]+(bC[o]-aC[o])*e)*f);gb[k]=Math.min(255,(aC[o+1]+(bC[o+1]-aC[o+1])*e)*f);bb[k]=Math.min(255,(aC[o+2]+(bC[o+2]-aC[o+2])*e)*f);
+  ab[k]=.55+light*.45;
+ }
+ ctx.globalAlpha=1;ctx.fillStyle='#050308';ctx.fillRect(0,0,W,H);
+ ctx.font=cell+'px "Fira Code",Consolas,monospace';ctx.textBaseline='top';
+ for(let k=0;k<zb.length;k++){if(zb[k]<=-1e8)continue;
+  ctx.globalAlpha=ab[k];ctx.fillStyle='rgb('+rb[k]+','+gb[k]+','+bb[k]+')';
+  ctx.fillText(chars[chb[k]],(k%cols)*cw,Math.floor(k/cols)*chh);}
+ ctx.globalAlpha=1;
+ const g=ctx.createRadialGradient(W/2,H/2,scale*.1,W/2,H/2,scale*1.6);
+ g.addColorStop(0,'rgba(190,90,200,.10)');g.addColorStop(1,'transparent');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+}
+requestAnimationFrame(draw);
+c.addEventListener('pointermove',e=>{const r=c.getBoundingClientRect();tx=((e.clientX-r.left)/r.width-.5)*2});
+c.addEventListener('pointerleave',()=>{tx=0});
+})();
+</script>
+</body>
+</html>
